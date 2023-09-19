@@ -1,0 +1,17 @@
+---
+# defaults file for ansible-role-pihole-docker
+pihole_version: 2023.05.2
+pihole_volume_directory: /opt/pihole
+
+pihole_web_port: 80
+pihole_dns_port: 53
+pihole_dhcp_port: 67
+
+enable_dnssec: "true"
+
+pihole_web_password: ChangeMeT0Som3thingS3cure!
+
+###
+# Time Zome. Authorized values found: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+###
+timezone: "Asia/Seoul"

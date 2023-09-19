@@ -1,0 +1,40 @@
+---
+# tasks file for ansible-role-pihole-docker
+- name: Create Pi-Hole volume directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    owner: root
+    group: root
+    mode: '0755'
+    state: directory
+  with_items:
+    - "{{ pihole_volume_directory }}"
+    - "{{ pihole_volume_directory }}/etc-pihole" 
+    - "{{ pihole_volume_directory }}/etc-dnsmasq.d"
+    - "{{ pihole_volume_directory }}/logs"
+
+- name: Start/Update Pi-Hole Container
+  community.docker.docker_container:
+    name: pihole
+    image: pihole/pihole:'{{ pihole_version }}'
+    published_ports:
+      - "{{ pihole_dns_port }}:53/tcp"
+      - "{{ pihole_dns_port }}:53/udp"
+      - "{{ pihole_web_port }}:80/tcp"
+    environment:
+      TZ: '{{ timezone }}'
+      WEBPASSWORD: '{{ pihole_web_password }}'
+      PIHOLE_DNS_: '{{ cloudflare_dns }}'
+      DNSSEC: '{{ enable_dnssec }}'
+      DNSMASQ_LISTENING: "local"
+    volumes:
+      - "{{ pihole_volume_directory }}/etc-pihole:/etc/pihole:rw"
+      - "{{ pihole_volume_directory }}/etc-dnsmasq.d:/etc/dnsmasq.d:rw"
+      - "{{ pihole_volume_directory }}/logs:/var/log/pihole:rw"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 30s
