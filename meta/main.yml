@@ -22,5 +22,4 @@ galaxy_info:
     - docker
     - pihole
 
-dependencies:
-  - role: darkhonor.docker
+dependencies: []
