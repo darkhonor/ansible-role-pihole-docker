@@ -3,8 +3,8 @@
 - name: Create Pi-Hole volume directories
   ansible.builtin.file:
     path: '{{ item }}'
-    owner: root
-    group: root
+    owner: 999
+    group: 1000
     mode: '0755'
     state: directory
   with_items:
@@ -13,28 +13,85 @@
     - "{{ pihole_volume_directory }}/etc-dnsmasq.d"
     - "{{ pihole_volume_directory }}/logs"
 
+###
+# Required per: https://blog.samcater.com/fix-workaround-rpi4-docker-libseccomp2-docker-20/
+###
+- name: Add Buster Backports Signing Keys
+  ansible.builtin.apt_key:
+    url: '{{ item }}'
+    state: present
+  with_items:
+    - '{{ key_648ACFD622F3D138_url }}'
+    - '{{ key_04EE7237B7D453EC_url }}'
+    - '{{ key_0E98404D386FA1D9_url }}'
+    - '{{ key_6ED0E7B82643E131_url }}'
+  when:
+    - ansible_facts['distribution'] == 'Debian'
+    - ansible_facts['distribution_release'] == 'buster'
+    - ansible_architecture == 'armv7l'
+
+- name: Add Buster Backport Repository
+  ansible.builtin.apt_repository:
+    repo: deb http://httpredir.debian.org/debian buster-backports main contrib non-free
+    filename: buster-backports
+    update_cache: true
+    state: present
+  when:
+    - ansible_facts['distribution'] == 'Debian'
+    - ansible_facts['distribution_release'] == 'buster'
+    - ansible_architecture == 'armv7l'
+
+- name: Install backports version of libseccomp2
+  ansible.builtin.apt:
+    name:
+      - libseccomp2
+    autoremove: true
+    default_release: buster-backports
+    force: true
+    state: present
+  when:
+    - ansible_facts['distribution'] == 'Debian'
+    - ansible_facts['distribution_release'] == 'buster'
+    - ansible_architecture == 'armv7l'
+
 - name: Start/Update Pi-Hole Container
   community.docker.docker_container:
     name: pihole
-    image: pihole/pihole:'{{ pihole_version }}'
+    image: "pihole/pihole:{{ pihole_version }}"
     published_ports:
       - "{{ pihole_dns_port }}:53/tcp"
       - "{{ pihole_dns_port }}:53/udp"
       - "{{ pihole_web_port }}:80/tcp"
-    environment:
+    env:
+      VIRTUAL_HOST: "{{ inventory_hostname }}.{{ dns_domain }}"
+      PIHOLE_DOMAIN: '{{ dns_domain }}'
       TZ: '{{ timezone }}'
       WEBPASSWORD: '{{ pihole_web_password }}'
+      FTLCONF_LOCAL_IPV4: '{{ ansible_host }}'
       PIHOLE_DNS_: '{{ cloudflare_dns }}'
       DNSSEC: '{{ enable_dnssec }}'
-      DNSMASQ_LISTENING: "local"
+      DNSMASQ_LISTENING: "single"
+      INTERFACE: "eth0"
+      DHCP_ACTIVE: "false"
+      DNS_BOGUS_PRIV: "true"
+      DNS_FQDN_REQUIRED: "true"
     volumes:
       - "{{ pihole_volume_directory }}/etc-pihole:/etc/pihole:rw"
       - "{{ pihole_volume_directory }}/etc-dnsmasq.d:/etc/dnsmasq.d:rw"
       - "{{ pihole_volume_directory }}/logs:/var/log/pihole:rw"
     restart_policy: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost"]
+      test: ["CMD", "curl", "--fail", "http://localhost:{{ pihole_web_port }}"]
       interval: 5m
       timeout: 10s
       retries: 3
       start_period: 30s
+
+- name: Transition Host DNS to Pi-Hole
+  ansible.builtin.lineinfile:
+    path: /etc/dhcpcd.conf
+    regexp: '^static domain_name_servers='
+    line: "static domain_name_servers=127.0.0.1"
+    state: present
+  when:
+    - transition_host_to_pihole

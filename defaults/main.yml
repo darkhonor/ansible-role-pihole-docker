@@ -10,6 +10,9 @@ pihole_dhcp_port: 67
 enable_dnssec: "true"
 
 pihole_web_password: ChangeMeT0Som3thingS3cure!
+dns_domain: lab.local
+
+transition_host_to_pihole: true
 
 ###
 # Time Zome. Authorized values found: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
