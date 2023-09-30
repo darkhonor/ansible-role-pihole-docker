@@ -18,3 +18,12 @@ transition_host_to_pihole: true
 # Time Zome. Authorized values found: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
 ###
 timezone: "Asia/Seoul"
+
+###
+# Firewall Settings
+###
+enable_ufw: true
+valid_sources:
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
